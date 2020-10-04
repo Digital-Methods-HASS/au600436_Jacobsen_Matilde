@@ -67,3 +67,5 @@ interviews <- read.csv("Data/SAFI_clean.csv")
 ```
 Notes:
 I use the package "pacman" to get the function "p_load", which both "installs" and saves the package in my "library". I can keep adding packages I want to install inside of the parantheses by adding a comma after the package name and type the name of another package I want to install.
+Link to screenshot in Github repository:
+https://github.com/Digital-Methods-HASS/au600436_Jacobsen_Matilde/blob/5c8672c468f4d46d315d681fd557fda348544911/Screenshot%202020-10-04%20at%2017.25.28.png 
