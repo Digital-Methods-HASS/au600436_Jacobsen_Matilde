@@ -7,11 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-
 ## Set working directory
 As a standard I always start out by setting my working directory to the current folder:
 ```{r}
