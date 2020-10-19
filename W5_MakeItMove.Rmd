@@ -1,8 +1,8 @@
 ---
 title: "HW5 - Make Data Move"
 author: "Matilde Jacobsen"
-date: "15/10/2020"
-output: PDF
+date: "19/10/2020"
+output: html_document
 editor_options: 
   chunk_output_type: console
 ---
@@ -32,8 +32,9 @@ pacman::p_load(tidyverse, gganimate, gapminder, scales)
 ## Look at the data
 First, see which specific years are actually represented in the dataset and what variables are being recorded for each country. Note that when you run the cell below, Rmarkdown will give you two results - one for each line - that you can flip between.
 ```{r}
-unique(gapminder$year)
+year_list <- unique(gapminder$year)
 head(gapminder)
+#putting the data in my environment
 gapminder <- gapminder
 
 ```
@@ -47,7 +48,7 @@ ggplot(subset(gapminder, year == 1952), aes(gdpPercap, lifeExp, size = pop)) +
   geom_point() +
   scale_x_log10() +
   labs(title = "1952 plot",
-       x = 'GDP per capita',
+       x = 'Gross domestic product (GDP) per capita',
        y = 'Life expectancy',
        size = 'Population')
 
@@ -83,7 +84,7 @@ ggplot(subset(gapminder, year == 2007), aes(gdpPercap, lifeExp, size = pop, colo
   geom_point() +
   scale_x_log10() +
   labs(title = "Gapminder: 2007 plot",
-       x = 'GDP per capita',
+       x = 'Gross domestic product (GDP) per capita',
        y = 'Life expectancy',
        size = 'Population') #using labs to change labels on the axis and put on a title
 
@@ -117,7 +118,7 @@ anim <- ggplot(gapminder, aes(gdpPercap, lifeExp, size = pop, color = continent)
   scale_size_continuous(label=comma) +
   scale_x_log10(labels = scales::comma) +  # convert x to log scale
   labs(title = "Gapminder: animated plot",
-       x = 'GDP per capita',
+       x = 'Gross domestic product (GDP) per capita',
        y = 'Life expectancy',
        size = 'Population',
        color = 'Continent')
@@ -157,7 +158,7 @@ anim3 <- ggplot(gapminder, aes(gdpPercap, lifeExp, size = pop, color = continent
   geom_point() +
   scale_x_log10() +  # convert x to log scale
   labs(title = "Year: {frame_time}",
-       x = 'GDP per capita',
+       x = 'Gross domestic product (GDP) per capita',
        y = 'Life expectancy',
        size = 'Population') +
   transition_time(year) 
@@ -214,50 +215,52 @@ gapminder_co2 <- merge(gapminder2, co2_emissions_tonnes_per_person, by = c('year
 
 #ommitting rows with NA's
 gapminder_co2_complete <- drop_na(gapminder_co2, co2_emission)
+
 ```
 
 Answering the question with an animated object
 ```{r}
-#generating the anim object
-anim_co2 <- ggplot(gapminder_co2_complete, aes(gdpPercap, co2_emission, size = pop, color = continent, group = continent)) +
+#Generating the anim object
+anim_co2 <- ggplot(gapminder_co2_complete, aes(gdpPercap, co2_emission, size = pop, color = continent)) +
   geom_point() +
-  geom_text(aes(label=country))+
   scale_size_continuous(label=comma) +
   scale_x_log10(labels = scales::comma) +  # convert x to log scale
-  scale_y_log10(labels = scales::comma) +  
-  labs(title = "Does polusion rise as people become richer",
-       x = 'GDP per capita',
+  scale_y_log10(labels = scales::comma) +  # convert y to log scale
+  labs(title = "Does polusion rise as people become richer?",
+       subtitle = "The whole world",
+       x = 'Gross domestic product (GDP) per capita',
        y = 'CO2 emission in tons per capita',
        size = 'Population',
        color = 'Continent',
        caption = 'Data source: www.gapminder.org/data/')+
-  transition_time(year) +
-  labs(subtitle = "Year: {frame_time}")
+  geom_text(aes(x = min(gdpPercap), y = min(lifeExp), label = as.factor(year)), hjust=-1, vjust = 8, alpha = 0.2,  col = "gray", size = 20) +
+  transition_states(as.factor(year), state_length = 0)
 anim_co2
 
+
 #Looking at Europe only
-europe <- gapminder_co2 %>% 
+europe <- gapminder_co2_complete %>%
   filter(continent =="Europe") %>% 
-  ggplot(aes(gdpPercap, co2_emission, size = pop)) +
+  ggplot(aes(gdpPercap, co2_emission, size = pop, color = country)) +
   geom_point() +
-  geom_text(aes(label=country))+
+  geom_text(aes(label=country), hjust=0.1, vjust=-0.9, nudge_x = -.04)+ #adjustes the placement of country labels
+  theme(legend.position = "none") + #removes the caption of countries from the sidebar
   scale_size_continuous(label=comma) +
   scale_x_log10(labels = scales::comma) +  # convert x to log scale
-  scale_y_log10(labels = scales::comma) +  
   labs(title = "Does polusion rise as people become richer?",
-       x = 'GDP per capita',
+       subtitle = "Only Europe",
+       x = 'Gross domestic product (GDP) per capita',
        y = 'CO2 emission in tons per capita',
        size = 'Population',
-       #color = 'Continent',
        caption = 'Data source: www.gapminder.org/data/') +
-  transition_time(year) +
-  labs(subtitle = "Year: {frame_time}")
+  geom_text(aes(x = min(gdpPercap), y = min(co2_emission), label = as.factor(year)), hjust=0.1, vjust = -9, alpha = 0.2,  col = "gray", size = 20) +
+  transition_states(as.factor(year), state_length = 0)
 europe
 
 
 ```
 
-Looking at Europe it seems that some countries are worse than others. I want to look at how the worst are comparing to each other by animating a bar chart race:
+Looking at Europe it seems that some countries are worse than others. I want to look at how the worst are comparing to each other by animating a bar chart race inspired by the tutorial mentioned earlier:
 ```{r}
 ##Barchart race
 #filtering the 15 most polluting countries in Europe
@@ -273,7 +276,11 @@ head(gapminder_europe_most_co2)
 anim_race <- gapminder_europe_most_co2 %>%
   ggplot() +
   geom_col(aes(ranking, co2_emission, fill = country)) +
-  geom_text(aes(ranking, co2_emission, label = co2_emission), hjust=-0.1) +
+  labs(title = "Bar race of top ranked CO2 emission",
+       subtitle = "Only Europe",
+       x = 'CO2 emission in tons per capita',
+       caption = 'Data source: www.gapminder.org/data/')+
+  geom_text(aes(ranking, co2_emission, label = 'CO2 emission'), hjust=-0.1) +
   geom_text(aes(ranking, y=0 , label = country), hjust=1.1) + 
   geom_text(aes(x=15, y=max(co2_emission) , label = as.factor(year)), vjust = 0.2, alpha = 0.5,  col = "gray", size = 20) +
   coord_flip(clip = "off", expand = FALSE) + scale_x_reverse() +
@@ -285,49 +292,11 @@ anim_race <- gapminder_europe_most_co2 %>%
     axis.text.y = element_blank(),
     plot.margin = margin(1, 4, 1, 3, "cm")
   ) +
-  transition_states(year, state_length = 1970-2007, transition_length = 4) +
+  transition_states(year, state_length = 0, transition_length = 6) +
   enter_fade() +
   exit_fade() + 
   ease_aes('quadratic-in-out') 
-
-anim_save(bar_race, anim_race, width = 700, height = 432, fps = 25, duration = 15, rewind = FALSE)
-```
-
-However I could also look at the least polluting countries
-```{r}
-#filtering the 15 least polluting countries in Europe
-gapminder_europe_least_co2 <- gapminder_co2 %>% 
-  filter(continent =="Europe") %>% 
-  group_by(year) %>%
-  arrange(year, co2_emission) %>%
-  mutate(ranking_least = row_number()) %>%
-  filter(ranking_least <=15)
-
-head(gapminder_europe_least_co2)
-
-#Creating the bar chart race
-anim_race_least <- gapminder_europe_least_co2 %>%
-  ggplot() +
-  geom_col(aes(ranking_least, co2_emission, fill = country)) +
-  geom_text(aes(ranking_least, co2_emission, label = co2_emission), hjust=-0.1) +
-  geom_text(aes(ranking_least, y=0 , label = country), hjust=1.1) + 
-  geom_text(aes(x=15, y=max(co2_emission) , label = as.factor(year)), vjust = 0.2, alpha = 0.5,  col = "gray", size = 20) +
-  coord_flip(clip = "off", expand = FALSE) + scale_x_reverse() +
-  theme_minimal() + theme(
-    panel.grid = element_blank(), 
-    legend.position = "none",
-    axis.ticks.y = element_blank(),
-    axis.title.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.title.x = "CO2 emission: tonnes per capita",
-    plot.margin = margin(1, 4, 1, 3, "cm")
-  ) +
-  transition_states(year, state_length = 1970-2007, transition_length = 4) +
-  enter_fade() +
-  exit_fade() + 
-  ease_aes('quadratic-in-out') 
-
-anim_save(bar_race_least, anim_race_least, width = 700, height = 432, fps = 25, duration = 15, rewind = FALSE)
+anim_race
 ```
 
 It looks like some data is missing for some years for some countries, which looks strange in the animations, so I will try to create an animation where only the countries with a full dataset appears
@@ -338,91 +307,33 @@ complete_countries <- gapminder_co2_complete %>%
   filter(n()==58)
 #counting which countries that have complete data
 complete_country_list <- unique(complete_countries$country)
+#looking at which countries remain
+unique(complete_countries$country)
+```
+It looks like only 13 countries are left...
 
+I will try to make an animation of the countries which are left.
+```{r}
 #make animation
 anim_co2_complete <- 
   complete_countries %>% 
-  filter(continent == "Europe") %>% 
   ggplot(aes(gdpPercap, co2_emission, color = country)) +
+  theme_minimal() +
   geom_point() +
-  geom_text(aes(label=country), hjust=-0.1, vjust=-0.5, nudge_x = -.04)+
+  geom_text(aes(label=country), hjust=-0.1, vjust=-0.6, nudge_x = -.04)+ 
   scale_size_continuous(label=comma) +
   scale_x_log10(labels = scales::comma) +  # convert x to log scale
-  scale_y_log10(labels = scales::comma) +  
+  #scale_y_log10(labels = scales::comma) +  
   theme(legend.position = "none") +
-  labs(title = "Does polusion rise as people become richer",
-       subtitle = "Year: {frame_time}",
-       x = 'GDP per capita',
+  labs(title = "Does polusion rise as people become richer?",
+       subtitle = "The 13 remaining countris",
+       x = 'Gross domestic product (GDP) per capita',
        y = 'CO2 emission in tons per capita',
        caption = 'Data source: www.gapminder.org/data/') +
-  transition_time(year)
+  geom_text(aes(x = min(gdpPercap), y = min(co2_emission), label = as.factor(year)), hjust=0.1, vjust = -7, alpha = 0.2,  col = "gray", size = 20) +
+  transition_states(as.factor(year), state_length = 0)
 anim_co2_complete
 ```
+Even though it looks nicer, it is not so respresentative and I don't know what to say about the patterns in general.
 
-
-```{r}
-##Some exploratory assessment of the data
-#filtering some years
-year_2000 <- gapminder_europe_most_co2 %>% filter(year == 2000)
-year_1950 <- gapminder_europe_most_co2 %>% filter(year == 1950)
-
-#filtering some countries
-finland <- gapminder_europe %>% filter(country == "Finland")
-
-
-#looking at Luxembourg
-gapminder_co2 %>% 
-  filter(country  %in% c("Luxembourg", "Denmark", "Finland")) %>%
-  filter(between(year,1970, 2007)) %>% 
-  ggplot(aes(year, co2_emission, color = country)) +
-  geom_line() +
-  scale_size_continuous(label=comma) +
-  ylim(0,50)+
-  labs(title = "Luxembourg polution",
-       x = 'Year',
-       y = 'CO2 emission in tons per capita',
-       caption = 'Data source: www.gapminder.org/data/')
-
-#filtering one country
-spain <- gapminder_co2 %>% 
-  filter(country =="Spain") %>% 
-  ggplot(aes(gdpPercap, co2_emission)) +
-  geom_point() +
-  #geom_text(aes(label=country))+
-  scale_size_continuous(label=comma) +
-  scale_x_log10(labels = scales::comma) +  # convert x to log scale
-  scale_y_log10(labels = scales::comma) +  
-  labs(title = "Does polusion rise as people become richer",
-       x = 'GDP per capita',
-       y = 'CO2 emission in tons per capita',
-       #size = 'Population',
-       #color = 'Continent',
-       caption = 'Data source: www.gapminder.org/data/') +
-  transition_time(year) +
-  labs(subtitle = "Year: {frame_time}")
-spain
-
-#filtering two countries
-spain_and_portugal <- gapminder_co2 %>% 
-  filter(country %in% c("Spain", "Portugal")) %>% 
-  ggplot(aes(gdpPercap, co2_emission, color = country, size = pop)) +
-  geom_point() +
-  geom_text(aes(label=country))+
-  scale_size_continuous(label=comma) +
-  scale_x_log10(labels = scales::comma) +  # convert x to log scale
-  scale_y_log10(labels = scales::comma) +  
-  labs(title = "Does polusion rise as people become richer",
-       x = 'GDP per capita',
-       y = 'CO2 emission in tons per capita',
-       #size = 'Population',
-       #color = 'Continent',
-       caption = 'Data source: www.gapminder.org/data/') +
-  transition_time(year) +
-  labs(subtitle = "Year: {frame_time}")
-spain_and_portugal
-
-
-```
-
-
-
+So my conclusion to the question is, that Luxembourg is far the most pulluting country, but also quite rich, so their might be a correlation here. But since there is a lot of missing data, it is hard to say much about the general pattern, even though it quite clearly seems that CO2 emission and income is following each other quite linearly and that both has gone up quite a lot from 1950 to 2007.
