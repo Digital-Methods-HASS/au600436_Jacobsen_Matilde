@@ -1,0 +1,89 @@
+---
+title: "Assignment_6_functions_loops"
+author: "Matilde Jacobsen"
+date: "10/26/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+## Set working directory
+As a standard I always start out by setting my working directory to the current folder:
+```{r}
+#Setting working directory 
+setwd("/Users/matilde/Desktop/AU/Cultural Data Science/R/CDS2020_1")
+
+```
+
+## Get the necessary packages
+First, start with installing the relevant packages 'tidyverse', 'gganimate', and 'gapminder'.
+
+```{r libraries, echo = FALSE}
+#Installing packages
+pacman::p_load(tidyverse, gapminder)
+
+#putting the data in my environment
+gapminder <- gapminder
+```
+
+
+#Question 1
+Define a defensive function that calculates the Gross Domestic Product of a nation from the data available in the gapminder dataset. Using that function, calculate the GDP of Denmark in the following years: 1967, 1977, 1987, 1997, 2007, and 2017.
+
+```{r}
+# Takes a dataset and multiplies the population column
+# with the GDP per capita column.
+calcGDP <- function(dat, year=NULL, country=NULL) {
+  if(!is.null(year)) {
+    dat <- dat[dat$year %in% year, ]
+  }
+  if (!is.null(country)) {
+    dat <- dat[dat$country %in% country,]
+  }
+  gdp <- dat$gdpPercap * dat$pop
+
+  new <- cbind(dat, gdp=gdp)
+  return(new)
+}
+
+#Defining list of years to calculate
+years <- c(1967, 1977, 1987, 1997, 2007, 2017)
+
+#Using the values wanted
+calcGDP(gapminder, years, "Denmark")
+
+
+```
+
+
+#Question 2
+Write a script that loops over each country in the gapminder dataset, tests whether the country starts with a ‘B’ , and print out whether the life expectancy is smaller than 50, between 50 and 70, or greater than 70.
+
+```{r}
+#Creating a dataframe with only countries strartng with "B"
+candidateCountries <- grep("^B", unique(gapminder$country), value=TRUE)
+
+#Looping over those countries and return message about life expectancy
+#Strat by defining threshhold
+lowerThreshold <- 50
+upperThreshold <- 70
+#Writing the loop
+for (iCountry in candidateCountries) {
+  tmp <- mean(gapminder[gapminder$country == iCountry, "lifeExp"])
+  if(tmp >= 70){
+    print(paste("Average Life Expectancy in", iCountry, "is equal to or larger than")) }  
+  else if (tmp>=50) {
+   print(paste("Average Life Expectancy in", iCountry, "is between 50 and 70 years"))}
+  else { print(paste("Average Life Expectancy in", iCountry, "is smaller than 50"))
+  }}
+
+
+```
+
+
+#Question 3
+Optional: Write a script that loops over each country in the gapminder dataset, tests whether the country starts with a ‘M’ and graphs life expectancy against time (using plot() function) as a line graph if the mean life expectancy is under 50 years.
+
+```{r}
+
+```
+
