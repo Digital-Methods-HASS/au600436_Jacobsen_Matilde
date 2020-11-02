@@ -1,0 +1,234 @@
+---
+title: "covid_scraping"
+author: "Matilde Jacobsen"
+date: "1st November 2020, updated `r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Goal
+I want to analyse how lockdowns of different countries in Europe during the pandemic have changed the positivity rate
+
+# Challenge
+I have a data-set of positivity rates within Europe, but I need to find some data about when lockdown has happened for the different countries and transform that into a TRUE/FALSE per week
+
+
+```{r libraries}
+
+#Installing packages
+pacman::p_load(tidyverse, rvest, janitor, readxl, naniar)
+
+#Clean environment
+rm(list = ls())
+```
+
+#Covid data
+I downloaded some tesing data on the following site: https://www.ecdc.europa.eu/en/publications-data/covid-19-testing 
+```{r}
+#Getting dataset
+covid <- read_excel("data-raw/FdYeZGfV.xlsx")
+```
+
+## Scrape the data
+
+Next, I tried to scrape the content of a Wikipedia site and extract the HTML table (more accurately this site: https://en.wikipedia.org/wiki/National_responses_to_the_COVID-19_pandemic) by following the guidelines from this website: https://dcl-wrangle.stanford.edu/rvest.html
+```{r}
+url <- "https://en.wikipedia.org/wiki/National_responses_to_the_COVID-19_pandemic"
+# scrape the website
+
+# css_selector <- ".wikitable > tbody:nth-child(2)" #hashed out for knitting
+# 
+# url %>%  #hashed out knitting
+#   read_html() %>% #hashed out for knitting
+#   html_node(css = css_selector) %>% #hashed out for knitting
+#   html_table() #hashed out for knitting
+
+```
+
+I could not use the above way of scraping for a table the rowspan and colspan are < 1 in some cases, so I googled a solution and found a loop that would allow these spans to be overwritten with the content of the "parent item" in the column or row in which it was merged.
+Inspiration to loop: https://stackoverflow.com/questions/57279093/rvest-read-table-with-cells-that-span-multiple-rows
+
+I started out by figuring out how I wanted the table to look like in R, by exploring the header lines and how many columns where needed to fit the data from each row:
+```{r}
+# get the lines of the table
+lines <- url %>%
+  read_html() %>%
+  html_nodes(xpath="//table[starts-with(@class, 'wikitable')]") %>%
+  html_nodes(xpath = 'tbody/tr')
+
+##define the empty table
+#getting column names from headers
+c1 <- lines[[2]]%>%
+    html_children()%>%
+    html_text()%>%
+    gsub("\n","",.)
+c2 <- lines[[3]]%>%
+    html_children()%>%
+    html_text()%>%
+    gsub("\n","",.)
+#merging column names so that it matches content of rows
+cols <- c("Country / Territory", "Place", "First Lockdown Start date", "First Lockdown End date", "First Lockdown Length (days)", "Second Lockdown Start Date", "Second Lockdown End Date", "Second Lockdown Length (days)", "Level")
+#Removing header lists
+lines <- rlist::list.remove(lines, c(1:3))
+lines <- rlist::list.remove(lines, 128)
+#counting length of rows
+nrow <- length(lines)
+#creating empty data.frame
+table <- data.frame(matrix(nrow = nrow, ncol = 9))
+#assign column names from list above
+colnames(table) <- cols
+```
+
+Then I spend ages trying to figure out how this loop works, so that I could adapt it to my situation.
+And finally it took for ever to get around all of the formatting, so in the end I had to split up the loop in two, and wrangle one of the rows in the middle of the table for it to work properly:
+```{r}
+#--------------------------------------------#
+##########FIRST PART OF LOOP##################
+#--------------------------------------------#
+
+# fill the table until Medina
+for(i in 1:96){
+  linecontent <- lines[[i]]%>%
+    html_children()%>%
+    html_text()%>%
+    gsub("\n","",.)
+  
+  #Fix column repetitions
+  repetition_col <- lines[[i]]%>%
+    html_children()%>%
+    html_attr("colspan")%>%
+    ifelse(is.na(.),1,.) %>% # if no rowspan, then it is a normal row, not a multiple one
+    as.numeric
+
+  #Test repetition loop
+  for(j in 1:length(repetition_col)){
+    span_col <- repetition_col[j]
+    if(span_col > 1){
+      linecontent[9] <- linecontent[1]
+      linecontent <- c(linecontent[1],linecontent[9],linecontent[2:8])
+    } else{
+      linecontent <- linecontent
+    }
+  }  
+  # attribute the content to free columns
+  colselect <- is.na(table[i,])
+  table[i,colselect] <- linecontent
+  
+  #Fix row repetitions
+  repetition_row <- lines[[i]]%>%
+    html_children()%>%
+    html_attr("rowspan")%>%
+    ifelse(is.na(.),1,.) %>% # if no rowspan, then it is a normal row, not a multiple one
+    as.numeric
+  
+# repeat the cells of the multiple rows down
+  for(k in 1:length(repetition_row)){
+    span_row <- repetition_row[k]
+    if(span_row > 1 & colselect[1,1] == FALSE & colselect[1,3] == TRUE){
+      table[(i+1):(i+span_row-1),k+1] <- rep(linecontent[k],span_row-1)
+    } else if(span_row > 1 & colselect[1,3] == FALSE){
+      table[(i+1):(i+span_row-1),k+2] <- rep(linecontent[k],span_row-1)
+    } else {
+      if(span_row > 1){
+      table[(i+1):(i+span_row-1),k] <- rep(linecontent[k],span_row-1)
+    }
+  }
+}
+  } 
+
+#---------------------------------#
+##########FIX MEDINA##############
+#--------------------------------#
+#Identifying Medina
+medina <- lines[[97]]%>%
+    html_children()%>%
+    html_text()%>%
+    gsub("\n","",.)
+#Replace content of length of lockdown
+table[97,]$`First Lockdown Length (days)` <- table[97,]$`First Lockdown End date`  
+#Replace content of End date
+table[97,]$`First Lockdown End date` <- ""
+
+# attribute the content to free columns
+colselect <- is.na(table[97,])
+table[97,colselect] <- medina
+
+#--------------------------------------------#
+##########SECOND PART OF LOOP#################
+#--------------------------------------------#  
+# fill the table from after Medina
+for(i in 98:nrow){
+  linecontent <- lines[[i]]%>%
+    html_children()%>%
+    html_text()%>%
+    gsub("\n","",.)
+  
+  #Fix column repetitions
+  repetition_col <- lines[[i]]%>%
+    html_children()%>%
+    html_attr("colspan")%>%
+    ifelse(is.na(.),1,.) %>% # if no rowspan, then it is a normal row, not a multiple one
+    as.numeric
+
+  #Test repetition loop
+  for(j in 1:length(repetition_col)){
+    span_col <- repetition_col[j]
+    if(span_col > 1){
+      linecontent[9] <- linecontent[1]
+      linecontent <- c(linecontent[1],linecontent[9],linecontent[2:8])
+    } else{
+      linecontent <- linecontent
+    }
+  }  
+  # attribute the content to free columns
+  colselect <- is.na(table[i,])
+  table[i,colselect] <- linecontent
+  
+  #Fix row repetitions
+  repetition_row <- lines[[i]]%>%
+    html_children()%>%
+    html_attr("rowspan")%>%
+    ifelse(is.na(.),1,.) %>% # if no rowspan, then it is a normal row, not a multiple one
+    as.numeric
+  
+# repeat the cells of the multiple rows down
+  for(k in 1:length(repetition_row)){
+    span_row <- repetition_row[k]
+    if(span_row > 1 & colselect[1,1] == FALSE & colselect[1,3] == TRUE){
+      table[(i+1):(i+span_row-1),k+1] <- rep(linecontent[k],span_row-1)
+    } else if(span_row > 1 & colselect[1,3] == FALSE){
+      table[(i+1):(i+span_row-1),k+2] <- rep(linecontent[k],span_row-1)
+    } else {
+      if(span_row > 1){
+      table[(i+1):(i+span_row-1),k] <- rep(linecontent[k],span_row-1)
+    }
+  }
+}
+  } 
+
+```
+
+Now we can have a look at the data
+```{r}
+head(table)
+tail(table)
+#display which countries are in the table
+levels(unique(as.factor(table$`Country / Territory`)))
+#compare to the covid data
+levels(unique(as.factor(covid$country)))
+
+#Who has the longest lockdowns in the first period?
+table$`First Lockdown Length (days)` <- as.numeric(table$`First Lockdown Length (days)`)
+table %>% select(`Country / Territory`,`First Lockdown Start date`,`First Lockdown End date`,`First Lockdown Length (days)`) %>% arrange(desc(`First Lockdown Length (days)`)) %>% head(20)
+
+#Who has the higest positivity rate in the covid data?
+covid %>% group_by(country) %>% summarise(sum_of_positivity_rate = sum(positivity_rate)) %>% arrange(desc(sum_of_positivity_rate)) %>% head(20)
+```
+
+Next step would now be to create a "week" variable in the table data and merge it with the covid data by week and country and then I would be able to visualize the positivity rating by week and put in information about lockdowns for the individual countries. 
+But I will stick to this for now, and maybe finish the script at a later point before handing in the portfolio...
